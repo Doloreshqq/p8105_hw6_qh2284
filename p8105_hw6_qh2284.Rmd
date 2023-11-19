@@ -10,6 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(purrr)
 library(ggplot2)
+library(MASS)
+library(modelr)
 ```
 
 ## Problem 1
@@ -19,9 +21,9 @@ library(ggplot2)
 homi = read_csv("./dataset/homicide-data.csv")
 ```
 
-**Create a `city_state` variable (e.g. \"Baltimore, MD\"), and a binary variable indicating whether the homicide is solved. Omit cities Dallas, TX; Phoenix, AZ; and Kansas City, MO -- these don\'t report victim race. Also omit Tulsa, AL -- this is a data entry mistake. For this problem, limit your analysis those for whom `victim_race` is `white` or `black`. Be sure that `victim_age` is numeric.**
+**Create a `city_state` variable (e.g. "Baltimore, MD"), and a binary variable indicating whether the homicide is solved. Omit cities Dallas, TX; Phoenix, AZ; and Kansas City, MO -- these don't report victim race. Also omit Tulsa, AL -- this is a data entry mistake. For this problem, limit your analysis those for whom `victim_race` is `white` or `black`. Be sure that `victim_age` is numeric.**
 
-```{r}
+```{r, warning=FALSE}
 homi <- homi %>% 
   mutate(city_state = paste0(city,", ",state),
     solved = ifelse(disposition == "Closed by arrest",1,0)) %>% 
@@ -35,7 +37,7 @@ homi <- homi %>%
 ```{r}
 balt = homi %>% 
   filter(city == "Baltimore") %>% 
-  select(solved, victim_age, victim_race, victim_sex) %>%
+  dplyr::select(solved, victim_age, victim_race, victim_sex) %>%
   mutate(victim_sex = fct_relevel(victim_sex, "Female"))
 ```
 
@@ -68,7 +70,7 @@ odd_ci_balt = balt_model %>%
 odd_ci_balt
 ```
 
-**Now run `glm` for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims. Do this within a \"tidy\" pipeline, making use of `purrr::map`, list columns, and `unnest` as necessary to create a dataframe with estimated ORs and CIs for each city.**
+**Now run `glm` for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims. Do this within a "tidy" pipeline, making use of `purrr::map`, list columns, and `unnest` as necessary to create a dataframe with estimated ORs and CIs for each city.**
 
 ```{r}
 # create a function
@@ -114,7 +116,7 @@ Comment: We could observe New York, NY has the smallest OR and Albuquerque, NM h
 
 ## Problem 2
 
-**The boostrap is helpful when you\'d like to perform inference for a parameter / value / summary that doesn\'t have an easy-to-write-down distribution in the usual repeated sampling framework. We\'ll focus on a simple linear regression with `tmax` as the response with `tmin` and `prcp` as the predictors, and are interested in the distribution of two quantities estimated from these data:**
+**The boostrap is helpful when you'd like to perform inference for a parameter / value / summary that doesn't have an easy-to-write-down distribution in the usual repeated sampling framework. We'll focus on a simple linear regression with `tmax` as the response with `tmin` and `prcp` as the predictors, and are interested in the distribution of two quantities estimated from these data:**
 
 -   $\hat{r}^2$
 
@@ -134,7 +136,7 @@ weather_df =
     name = recode(id, USW00094728 = "CentralPark_NY"),
     tmin = tmin / 10,
     tmax = tmax / 10) |>
-  select(name, id, everything())
+  dplyr::select(name, id, everything())
 ```
 
 ```{r}
@@ -146,7 +148,7 @@ boot_strap = weather_df %>%
     mods_beta = map(mods, broom::glance),
     mods_r2 = map(mods, broom::tidy)) %>% 
   unnest(mods_r2, mods_beta) %>% 
-  select(.id, term, estimate, r.squared) %>% 
+  dplyr::select(.id, term, estimate, r.squared) %>% 
   pivot_wider(names_from = term, values_from = estimate) %>% 
   rename(
     beta_0 = `(Intercept)`,
@@ -189,12 +191,107 @@ Comment: We could observe that values r\^2 are all close to 1, which means there
 
 **Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).**
 
-Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values -- use `add_predictions` and `add_residuals` in making this plot.
+```{r}
+# load the dataset
+birth = read.csv("./dataset/birthweight.csv")
+```
 
-Compare your model to two others:
+```{r}
+# tidy
+birth = birth %>%
+  janitor::clean_names() %>% 
+  mutate(babysex = case_when(babysex == 1 ~ 'male',
+                             babysex == 2 ~ 'female'),
+         frace = recode(frace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other", "9" = "Unknown"),
+         malform = case_when(malform == 0 ~ 'absent',
+                             malform == 1 ~ 'present'),
+         mrace = recode(mrace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other"))
 
--   One using length at birth and gestational age as predictors (main effects only)
+# check NAs
+sum(is.na(birth))
+```
 
--   One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+There's no NAs in this dataset.
 
-Make this comparison in terms of the cross-validated prediction error; use `crossv_mc` and functions in `purrr` as appropriate.
+**Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values -- use `add_predictions` and `add_residuals` in making this plot.**
+
+FIrst of all, I fit a model based on all data (babysex, bhead, blength, delwt, fincome, gaweeks, mheight, mrace, parity, ppwt and smoken) as predictors. In this case, I applied backward stepwise.
+
+```{r}
+# fit a full model
+full_model = lm(bwt ~ ., data = birth) %>% 
+  step(direction = "backward", trace = FALSE) 
+
+full_model %>% 
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+With the model, I drew a plot of model residuals against fitted values.
+
+```{r}
+birth %>% 
+    add_predictions(full_model) %>% 
+    add_residuals(full_model) %>% 
+    ggplot(aes(x = pred, y = resid)) +
+    geom_point()  + 
+    geom_smooth(method = "lm") + 
+    labs(title = "Residuals against fitted values", 
+       x = "Predicted", 
+       y = "Residuals")
+```
+
+Since the slope of the fitted line is almost 0, it's hard for us to analyze the relationship.
+
+**Compare your model to two others:**
+
+-   **One using length at birth and gestational age as predictors (main effects only)**
+
+```{r}
+# model 2
+model2 = lm(bwt ~ blength + gaweeks, data = birth)
+
+model2 %>%
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+-   **One using head circumference, length, sex, and all interactions (including the three-way interaction) between these**
+
+```{r}
+# model 3
+model3 = lm(bwt ~ bhead * blength * babysex, data = birth)
+
+model3 %>%
+  broom::tidy() %>%
+  knitr::kable()
+```
+
+**Make this comparison in terms of the cross-validated prediction error; use `crossv_mc` and functions in `purrr` as appropriate.**
+
+```{r}
+cv_birth = 
+    crossv_mc(birth, 100) %>% 
+    mutate(train = map(train, as_tibble),
+           test = map(test,as_tibble)) %>% 
+   mutate(fit1 = map(train,~full_model),
+          fit2 = map(train,~model2),
+         fit3 = map(train,~model3)) %>% 
+    mutate(rmse_fit1 = map2_dbl(fit1, test, ~rmse(model = .x,data = .y)),
+           rmse_fit2 = map2_dbl(fit2, test, ~rmse(model = .x,data = .y)),
+           rmse_fit3 = map2_dbl(fit3, test, ~rmse(model = .x,data = .y))
+    )
+
+cv_birth %>% 
+  dplyr::select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin()
+```
+
+Comment: From above, we could conclude that full model (which consider all predictors) has the best distribution of RMSE (smallest RMSE) while fit2 (using length at birth and gestational age as predictors) has the worst distribution of RMSE (largest RMSE).
