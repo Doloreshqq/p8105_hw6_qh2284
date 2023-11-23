@@ -139,7 +139,7 @@ weather_df =
   dplyr::select(name, id, everything())
 ```
 
-```{r}
+```{r, warning=FALSE}
 
 boot_strap = weather_df %>% 
   modelr::bootstrap(n = 5000) %>% 
@@ -157,7 +157,8 @@ boot_strap = weather_df %>%
 
 res = boot_strap %>%
   summarise(r.squared = r.squared,
-    log_beta = log(beta_1 * beta_2))
+    log_beta12 = log(beta_1 * beta_2),
+    log_beta01 = log(beta_0 * beta_1))
 
 head(res)
 ```
@@ -168,12 +169,12 @@ r2_ci =
   quantile(pull(res,r.squared), probs = c(0.025,0.975)) %>% 
   knitr::kable()
 
-#log_ci = 
-#  quantile(pull(res,log_beta), probs = c(0.025,0.975)) %>% 
-#  knitr::kable()
+log_ci = 
+  quantile(pull(res,log_beta01), probs = c(0.025,0.975)) %>% 
+  knitr::kable()
   
 r2_ci
-#log_ci
+log_ci
 ```
 
 ```{r}
@@ -186,6 +187,29 @@ r2_dist
 ```
 
 Comment: We could observe that values r\^2 are all close to 1, which means there're strong linear relation and tmin and prcp are good indicators of tmax. Also, the distribution is approximately as normal distribution but left-skewed.
+
+```{r, warning=FALSE}
+b1b2_dist = res %>%
+  ggplot(aes(x = log_beta12)) +
+  geom_density() +
+  labs(title = "Distribution of log(beta1*beta2)", x = "log(beta1*beta2)")
+
+b1b2_dist
+
+```
+
+Comment: The distribution is somewhat skewed and has some outliers. Large samples are useful for inference to some point.
+
+```{r}
+b0b1_dist = res %>%
+  ggplot(aes(x = log_beta01)) +
+  geom_density() +
+  labs(title = "Distribution of log(beta0*beta1)", x = "log(beta0*beta1)")
+
+b0b1_dist
+```
+
+Comment: log(beta0\*beta1) are approximately normal distribution (with a little left skewed).
 
 ## Problem 3
 
