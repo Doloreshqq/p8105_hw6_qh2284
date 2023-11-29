@@ -122,7 +122,7 @@ Comment: We could observe New York, NY has the smallest OR and Albuquerque, NM h
 
 -   $log(\hat{\beta_1} * \hat{\beta_2})$
 
-**Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for** $\hat{r}^2$ **and** $log(\hat{\beta_0} * \hat{\beta_1})$**. Note: `broom::glance()` is helpful for extracting** $\hat{r}^2$ **from a fitted regression, and `broom::tidy()` (with some additional wrangling) should help in computing** $log(\hat{\beta_1} * \hat{\beta_2})$**.**
+**Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for** $\hat{r}^2$ **and** $log(\hat{\beta_1} * \hat{\beta_2})$**. Note: `broom::glance()` is helpful for extracting** $\hat{r}^2$ **from a fitted regression, and `broom::tidy()` (with some additional wrangling) should help in computing** $log(\hat{\beta_1} * \hat{\beta_2})$**.**
 
 ```{r}
 # load the dataset
@@ -157,8 +157,10 @@ boot_strap = weather_df %>%
 
 res = boot_strap %>%
   summarise(r.squared = r.squared,
-    log_beta12 = log(beta_1 * beta_2),
-    log_beta01 = log(beta_0 * beta_1))
+    log_beta12 = log(beta_1 * beta_2))
+
+res_noNA = res %>%
+  na.omit()
 
 head(res)
 ```
@@ -170,7 +172,7 @@ r2_ci =
   knitr::kable()
 
 log_ci = 
-  quantile(pull(res,log_beta01), probs = c(0.025,0.975)) %>% 
+  quantile(pull(res_noNA,log_beta12), probs = c(0.025,0.975)) %>% 
   knitr::kable()
   
 r2_ci
@@ -189,7 +191,7 @@ r2_dist
 Comment: We could observe that values r\^2 are all close to 1, which means there're strong linear relation and tmin and prcp are good indicators of tmax. Also, the distribution is approximately as normal distribution but left-skewed.
 
 ```{r, warning=FALSE}
-b1b2_dist = res %>%
+b1b2_dist = res_noNA %>%
   ggplot(aes(x = log_beta12)) +
   geom_density() +
   labs(title = "Distribution of log(beta1*beta2)", x = "log(beta1*beta2)")
@@ -199,17 +201,6 @@ b1b2_dist
 ```
 
 Comment: The distribution is somewhat skewed and has some outliers. Large samples are useful for inference to some point.
-
-```{r}
-b0b1_dist = res %>%
-  ggplot(aes(x = log_beta01)) +
-  geom_density() +
-  labs(title = "Distribution of log(beta0*beta1)", x = "log(beta0*beta1)")
-
-b0b1_dist
-```
-
-Comment: log(beta0\*beta1) are approximately normal distribution (with a little left skewed).
 
 ## Problem 3
 
