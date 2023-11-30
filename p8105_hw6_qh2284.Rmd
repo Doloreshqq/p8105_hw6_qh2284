@@ -163,6 +163,7 @@ res_noNA = res %>%
   na.omit()
 
 head(res)
+head(res_noNA)
 ```
 
 ```{r}
@@ -171,11 +172,16 @@ r2_ci =
   quantile(pull(res,r.squared), probs = c(0.025,0.975)) %>% 
   knitr::kable()
 
+r2_ci_noNA = 
+  quantile(pull(res_noNA,r.squared), probs = c(0.025,0.975)) %>% 
+  knitr::kable()
+
 log_ci = 
   quantile(pull(res_noNA,log_beta12), probs = c(0.025,0.975)) %>% 
   knitr::kable()
   
 r2_ci
+r2_ci_noNA
 log_ci
 ```
 
